@@ -1,0 +1,1346 @@
+<!DOCTYPE html>
+<html lang="zh-TW" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>急診專師班表</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
+    <style>
+        .batch-date-btn {
+            padding: 8px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            user-select: none;
+            font-size: 13px;
+            font-weight: 700;
+            color: #475569;
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .batch-date-btn:hover {
+            background-color: #e2e8f0;
+        }
+        .batch-date-btn.selected {
+            background-color: #0284c7;
+            color: #ffffff;
+            border-color: #0284c7;
+            box-shadow: 0 4px 6px -1px rgba(2, 132, 199, 0.2);
+        }
+        .clear-date-btn {
+            padding: 8px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            user-select: none;
+            font-size: 13px;
+            font-weight: 700;
+            color: #475569;
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .clear-date-btn:hover {
+            background-color: #fee2e2;
+        }
+        .clear-date-btn.has-shift {
+            background-color: #fce7f3;
+            color: #9d174d;
+            border-color: #fbcfe8;
+        }
+        .clear-date-btn.selected {
+            background-color: #e11d48 !important;
+            color: #ffffff !important;
+            border-color: #e11d48 !important;
+            box-shadow: 0 4px 6px -1px rgba(225, 29, 72, 0.2);
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900 font-sans pb-28">
+
+    <!-- Header -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+        <div class="max-w-md mx-auto px-4 py-3 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <span class="text-xl">🏥</span>
+                <h1 class="text-base font-bold text-slate-900 tracking-wide" id="header-title">急診專師班表</h1>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="toggleAdminMode()" id="admin-mode-btn" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg font-semibold transition flex items-center gap-1 border border-slate-200">
+                    <i class="fa-solid fa-lock text-slate-500" id="admin-icon"></i> <span id="admin-text">管理者登入</span>
+                </button>
+                <div class="flex flex-col gap-1 hidden" id="admin-action-buttons">
+                    <button onclick="openBatchModal()" class="text-[11px] bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded-md font-semibold transition flex items-center gap-1 border border-indigo-100">
+                        <i class="fa-solid fa-calendar-days text-indigo-600"></i> 批次排班
+                    </button>
+                    <button onclick="openClearModal()" class="text-[11px] bg-rose-50 hover:bg-rose-100 text-rose-700 px-2.5 py-1 rounded-md font-semibold transition flex items-center gap-1 border border-rose-100">
+                        <i class="fa-solid fa-eraser text-rose-600"></i> 清除排班
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab Switcher -->
+        <div class="max-w-md mx-auto px-4 pb-2 flex border-b border-slate-100 gap-4" id="tab-switcher-wrapper">
+            <button onclick="switchTab('schedule')" id="tab-schedule" class="pb-2 text-sm font-bold border-b-2 border-indigo-600 text-indigo-600 transition">
+                <i class="fa-solid fa-calendar-days mr-1"></i> 排班表
+            </button>
+            <button onclick="switchTab('stats')" id="tab-stats" class="pb-2 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition">
+                <i class="fa-solid fa-clock mr-1"></i> 時數統計
+            </button>
+        </div>
+
+        <!-- Filter Badges -->
+        <div class="max-w-md mx-auto px-4 py-2.5" id="filter-wrapper">
+            <div class="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar" id="filter-container">
+                <!-- Rendered by JS -->
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="max-w-md mx-auto px-4 py-3" id="main-container">
+        <div class="text-center py-12 text-slate-400 text-sm" id="loading-indicator">
+            <i class="fa-solid fa-spinner fa-spin mr-2"></i> 正在載入班表與雲端同步...
+        </div>
+    </main>
+
+    <!-- Bottom Month Navigation Bar -->
+    <nav class="fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur text-white border-t border-slate-800 z-30 shadow-lg" id="bottom-nav">
+        <div class="max-w-md mx-auto px-4 py-3 flex items-center justify-between">
+            <button onclick="changeMonth(-1)" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm px-3.5 py-2 rounded-lg transition font-medium flex items-center gap-1.5">
+                <i class="fa-solid fa-chevron-left text-xs"></i> 上月
+            </button>
+            <div onclick="openPickerModal()" class="text-sm font-bold tracking-wide bg-slate-800/80 hover:bg-slate-800 px-3 py-1.5 rounded-lg cursor-pointer transition flex items-center gap-1.5 border border-slate-700" id="current-month-label">
+                <!-- Rendered by JS -->
+            </div>
+            <button onclick="changeMonth(1)" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm px-3.5 py-2 rounded-lg transition font-medium flex items-center gap-1.5">
+                下月 <i class="fa-solid fa-chevron-right text-xs"></i>
+            </button>
+        </div>
+        <div class="text-center pb-1.5 text-xs text-slate-400">
+            急診專師班表 &copy; 2026 (雙重防護即時同步版)
+        </div>
+    </nav>
+
+    <!-- Modals -->
+    <!-- Admin Password Modal -->
+    <div id="admin-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl w-full max-w-xs p-5 shadow-2xl text-sm space-y-4">
+            <div class="flex justify-between items-center pb-2 border-b border-slate-100">
+                <h3 class="text-base font-bold text-slate-900"><i class="fa-solid fa-lock text-indigo-600 mr-2"></i>管理者驗證</h3>
+                <button onclick="closeAdminModal()" class="text-slate-400 hover:text-slate-600 p-1"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <div>
+                <label class="block font-semibold text-slate-700 text-xs mb-1.5">請輸入管理者密碼：</label>
+                <input type="password" id="admin-password-input" placeholder="請輸入密碼" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            </div>
+            <div class="flex gap-2 pt-2">
+                <button type="button" onclick="closeAdminModal()" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-2.5 rounded-xl text-xs font-semibold transition">取消</button>
+                <button type="button" onclick="verifyAdminPassword()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-xl text-xs font-semibold shadow-md transition">確認登入</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Single Shift Modal -->
+    <div id="edit-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl w-full max-w-sm p-5 shadow-2xl text-sm">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-base font-bold text-slate-900"><i class="fa-solid fa-user-pen text-indigo-600 mr-2"></i>選擇排班成員</h3>
+                <button onclick="closeEditModal()" class="text-slate-400 hover:text-slate-600 p-1"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <div id="edit-info-box" class="bg-slate-50 p-3 rounded-xl border border-slate-100 mb-4 text-xs text-slate-600">
+                <!-- Info rendered by JS -->
+            </div>
+            <div class="space-y-3">
+                <label class="block font-semibold text-slate-700 text-xs">點選指派成員：</label>
+                <div id="member-selection-grid" class="grid grid-cols-2 gap-2">
+                    <!-- Rendered by JS -->
+                </div>
+            </div>
+            <div class="mt-4 pt-3 border-t border-slate-100 flex gap-2">
+                <button type="button" onclick="clearCurrentEditShift()" class="bg-amber-50 hover:bg-amber-100 text-amber-700 px-3.5 py-2.5 rounded-xl font-semibold text-xs transition"><i class="fa-solid fa-eraser mr-1"></i>清除此位</button>
+                <button type="button" onclick="closeEditModal()" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-2.5 rounded-xl text-xs font-semibold transition">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Batch Add Shift Modal -->
+    <div id="batch-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl w-full max-w-md p-5 shadow-2xl max-h-[90vh] flex flex-col text-sm">
+            <div class="flex justify-between items-center mb-3">
+                <h3 class="text-base font-bold text-slate-900"><i class="fa-solid fa-calendar-days text-indigo-600 mr-2"></i>多選日期批次排班</h3>
+                <button onclick="closeBatchModal()" class="text-slate-400 hover:text-slate-600 p-1"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <div class="overflow-y-auto space-y-3.5 flex-1 pr-1 text-xs">
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1 text-xs">1. 選擇目標成員</label>
+                    <select id="batch-member" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <!-- Rendered by JS -->
+                    </select>
+                </div>
+                <div class="grid grid-cols-2 gap-2.5">
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1 text-xs">2. 選擇區域</label>
+                        <select id="batch-section" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <option value="內科區">內科區</option>
+                            <option value="外科區">外科區</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1 text-xs">3. 選擇時段</label>
+                        <select id="batch-type" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <option value="day">08:00 - 20:00</option>
+                            <option value="night">20:00 - 08:00</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <div class="flex justify-between items-center mb-1.5">
+                        <label class="font-semibold text-slate-700 text-xs">4. 點選日期（反藍即為選取）</label>
+                        <div class="space-x-2">
+                            <button type="button" onclick="selectAllDates(true)" class="text-xs text-indigo-600 hover:underline font-medium">全選</button>
+                            <button type="button" onclick="selectAllDates(false)" class="text-xs text-slate-500 hover:underline font-medium">清空</button>
+                        </div>
+                    </div>
+                    <div id="batch-dates-grid" class="grid grid-cols-7 gap-2 py-2 max-h-48 overflow-y-auto">
+                        <!-- Rendered by JS -->
+                    </div>
+                </div>
+            </div>
+            <div class="mt-4 pt-3 border-t border-slate-100 flex gap-2">
+                <button type="button" onclick="closeBatchModal()" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-2.5 rounded-xl text-xs font-semibold transition">取消</button>
+                <button type="button" onclick="handleBatchSave()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-xl text-xs font-semibold shadow-md transition">確認批次排班</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Batch Clear Modal -->
+    <div id="clear-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl w-full max-w-md p-5 shadow-2xl max-h-[90vh] flex flex-col text-sm">
+            <div class="flex justify-between items-center mb-3">
+                <h3 class="text-base font-bold text-rose-700"><i class="fa-solid fa-eraser mr-2"></i>多選日期與人員批次清除</h3>
+                <button onclick="closeClearModal()" class="text-slate-400 hover:text-slate-600 p-1"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <div class="overflow-y-auto space-y-3.5 flex-1 pr-1 text-xs">
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1 text-xs">1. 選擇要清除的目標成員（選擇後會自動標示已排班日期）</label>
+                    <select id="clear-member" onchange="renderClearDatesGrid()" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500">
+                        <!-- Rendered by JS -->
+                    </select>
+                </div>
+                <div>
+                    <div class="flex justify-between items-center mb-1.5">
+                        <label class="font-semibold text-slate-700 text-xs">2. 點選要清除的日期（粉紅色代表該成員當天已有班）</label>
+                        <div class="space-x-2">
+                            <button type="button" onclick="selectAllClearDates(true)" class="text-xs text-rose-600 hover:underline font-medium">全選</button>
+                            <button type="button" onclick="selectAllClearDates(false)" class="text-xs text-slate-500 hover:underline font-medium">清空</button>
+                        </div>
+                    </div>
+                    <div id="clear-dates-grid" class="grid grid-cols-7 gap-2 py-2 max-h-48 overflow-y-auto">
+                        <!-- Rendered by JS -->
+                    </div>
+                </div>
+            </div>
+            <div class="mt-4 pt-3 border-t border-slate-100 flex gap-2">
+                <button type="button" onclick="closeClearModal()" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-2.5 rounded-xl text-xs font-semibold transition">取消</button>
+                <button type="button" onclick="handleClearSave()" class="flex-1 bg-rose-600 hover:bg-rose-700 text-white py-2.5 rounded-xl text-xs font-semibold shadow-md transition">確認清除勾選</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Month & Year Picker Modal -->
+    <div id="picker-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl w-full max-w-xs p-5 shadow-2xl text-sm space-y-4">
+            <div class="flex justify-between items-center pb-2 border-b border-slate-100">
+                <h3 class="text-base font-bold text-slate-900"><i class="fa-solid fa-calendar text-indigo-600 mr-2"></i>快速選擇年月</h3>
+                <button onclick="closePickerModal()" class="text-slate-400 hover:text-slate-600 p-1"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <div>
+                <label class="block font-semibold text-slate-700 text-xs mb-1.5">選擇年份：</label>
+                <select id="picker-year" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <!-- Populated by JS starting from 2026 -->
+                </select>
+            </div>
+            <div>
+                <label class="block font-semibold text-slate-700 text-xs mb-1.5">選擇月份：</label>
+                <div class="grid grid-cols-4 gap-2" id="picker-months-grid">
+                    <!-- Rendered by JS -->
+                </div>
+            </div>
+            <div class="pt-2">
+                <button onclick="closePickerModal()" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 py-2 rounded-xl text-xs font-semibold transition">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="fixed top-14 left-1/2 transform -translate-x-1/2 bg-slate-900 text-white text-xs px-3.5 py-2 rounded-lg shadow-lg transition-all duration-300 opacity-0 pointer-events-none z-50">
+        提示訊息
+    </div>
+
+    <!-- Firebase SDK Imports & Dual Storage Sync Logic -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const members = [
+            { name: "陳星光", dot: "bg-blue-600" },
+            { name: "呂翊如", dot: "bg-emerald-500" },
+            { name: "陳嘉珮", dot: "bg-rose-500" },
+            { name: "洪怡君", dot: "bg-purple-500" },
+            { name: "游騰睿", dot: "bg-sky-500" },
+            { name: "蔡岳銘", dot: "bg-orange-500" },
+            { name: "陳君豪", dot: "bg-indigo-500" },
+            { name: "彭士彥", dot: "bg-teal-500" }
+        ];
+
+        const realToday = new Date();
+        let currentYear = realToday.getFullYear();
+        let currentMonth = realToday.getMonth() + 1;
+        
+        const todayYear = realToday.getFullYear();
+        const todayMonth = realToday.getMonth() + 1;
+        const todayDate = realToday.getDate();
+
+        let currentFilter = 'all';
+        let currentTab = 'schedule';
+        let activeMemberDetail = null;
+        let activeEditKey = null;
+        let isAdminMode = false;
+
+        let memberData = {};
+        let monthlyRequiredHours = {};
+        let schedules = [];
+
+        let db, auth, appId, user = null;
+        let hasScrolledToToday = false;
+        let isInitialLoad = true;
+
+        window.initApp = async function() {
+            renderFilterBadges();
+            renderBatchMemberSelect();
+            renderClearMemberSelect();
+            updateMonthLabel();
+            updateAdminUI();
+
+            // 1. 先從 localStorage 載入快取，確保畫面秒開且修改不遺失
+            try {
+                const localData = localStorage.getItem('emergency_schedule_local_backup');
+                if (localData) {
+                    const parsed = JSON.parse(localData);
+                    schedules = parsed.schedules || [];
+                    memberData = parsed.memberData || {};
+                    monthlyRequiredHours = parsed.monthlyRequiredHours || {};
+                    renderMainContent();
+                }
+            } catch (err) {
+                console.warn("Local storage read error:", err);
+            }
+
+            // 2. 初始化 Firebase 雲端連線並同步
+            try {
+                const configStr = typeof __firebase_config !== 'undefined' ? __firebase_config : null;
+                if (!configStr) {
+                    throw new Error("Missing Firebase Config");
+                }
+                const firebaseConfig = JSON.parse(configStr);
+                const app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+                appId = typeof __app_id !== 'undefined' ? __app_id : 'emergency-nurse-schedule-2026';
+
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+                onAuthStateChanged(auth, (u) => {
+                    user = u;
+                    if (user) {
+                        setupCloudListener();
+                    }
+                });
+            } catch (e) {
+                console.warn("Using Local Mode:", e);
+                renderMainContent();
+            }
+        };
+
+        function setupCloudListener() {
+            if (!user || !db) return;
+            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'schedule_main_db');
+            
+            onSnapshot(docRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    // 若雲端有資料，且不是剛由本地送出的空白覆蓋，則採用雲端
+                    if (data.schedules && data.schedules.length > 0) {
+                        schedules = data.schedules;
+                        memberData = data.memberData || {};
+                        monthlyRequiredHours = data.monthlyRequiredHours || {};
+                        saveToLocalBackup();
+                    } else if (isInitialLoad && schedules.length > 0) {
+                        // 雲端為空但本地有資料，自動將本地資料上傳至雲端同步
+                        saveToCloud();
+                    }
+                }
+                isInitialLoad = false;
+                renderMainContent();
+            }, (error) => {
+                console.error("Cloud sync error:", error);
+                renderMainContent();
+            });
+        }
+
+        function saveToLocalBackup() {
+            try {
+                localStorage.setItem('emergency_schedule_local_backup', JSON.stringify({
+                    schedules: schedules,
+                    memberData: memberData,
+                    monthlyRequiredHours: monthlyRequiredHours,
+                    updatedAt: new Date().toISOString()
+                }));
+            } catch (e) {
+                console.error("Failed to save to local backup:", e);
+            }
+        }
+
+        async function saveToCloud() {
+            saveToLocalBackup(); // 確保同時存入本機與雲端
+            if (!user || !db) return;
+            try {
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'schedule_main_db');
+                await setDoc(docRef, {
+                    schedules: schedules,
+                    memberData: memberData,
+                    monthlyRequiredHours: monthlyRequiredHours,
+                    updatedAt: new Date().toISOString()
+                });
+            } catch (e) {
+                console.error("Failed to save to cloud:", e);
+            }
+        }
+
+        function getYearMonthKey(year, month) {
+            return `${year}-${String(month).padStart(2, '0')}`;
+        }
+
+        window.getRequiredWorkHours = function(year, month) {
+            const ymKey = getYearMonthKey(year, month);
+            if (monthlyRequiredHours[ymKey] === undefined) {
+                monthlyRequiredHours[ymKey] = 168;
+            }
+            return monthlyRequiredHours[ymKey];
+        };
+
+        function setRequiredWorkHours(year, month, hours) {
+            const ymKey = getYearMonthKey(year, month);
+            monthlyRequiredHours[ymKey] = parseFloat(hours) || 0;
+            saveToCloud();
+        }
+
+        window.getMemberMonthRecord = function(memberName, year, month) {
+            if (!memberData[memberName]) memberData[memberName] = {};
+            const ymKey = getYearMonthKey(year, month);
+            if (!memberData[memberName][ymKey]) {
+                memberData[memberName][ymKey] = {
+                    annualTotal: 0,
+                    annualLeave: 0,
+                    compLeave: 0,
+                    compAdded: 0,
+                    overtime: 0,
+                    typhoon: 0
+                };
+            }
+            return memberData[memberName][ymKey];
+        };
+
+        window.getRemainingAnnualLeave = function(memberName, year, month) {
+            const janRecord = getMemberMonthRecord(memberName, year, 1);
+            const totalAnnual = janRecord.annualTotal || 0;
+            
+            let usedBefore = 0;
+            for (let m = 1; m < month; m++) {
+                const rec = getMemberMonthRecord(memberName, year, m);
+                usedBefore += (rec.annualLeave || 0);
+            }
+            return totalAnnual - usedBefore;
+        };
+
+        window.getRemainingCompHours = function(memberName, year, month) {
+            let compBalance = 0;
+            for (let m = 1; m < month; m++) {
+                const rec = getMemberMonthRecord(memberName, year, m);
+                compBalance += (rec.compAdded || 0) + (rec.typhoon || 0) - (rec.compLeave || 0);
+            }
+            return compBalance;
+        };
+
+        window.toggleAdminMode = function() {
+            if (isAdminMode) {
+                isAdminMode = false;
+                updateAdminUI();
+                showToast('已登出管理者模式');
+                renderMainContent();
+            } else {
+                document.getElementById('admin-password-input').value = '';
+                document.getElementById('admin-modal').classList.add('flex');
+                document.getElementById('admin-modal').classList.remove('hidden');
+            }
+        };
+
+        window.closeAdminModal = function() {
+            document.getElementById('admin-modal').classList.remove('flex');
+            document.getElementById('admin-modal').classList.add('hidden');
+        };
+
+        window.verifyAdminPassword = function() {
+            const pwd = document.getElementById('admin-password-input').value;
+            if (pwd === '1113') {
+                isAdminMode = true;
+                closeAdminModal();
+                updateAdminUI();
+                showToast('管理者模式已啟用！');
+                renderMainContent();
+            } else {
+                showToast('密碼錯誤（正確密碼: 1113）');
+            }
+        };
+
+        function updateAdminUI() {
+            const btn = document.getElementById('admin-mode-btn');
+            const icon = document.getElementById('admin-icon');
+            const text = document.getElementById('admin-text');
+            const adminActionButtons = document.getElementById('admin-action-buttons');
+
+            if (isAdminMode) {
+                btn.className = "text-xs bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-3 py-1.5 rounded-lg font-semibold transition flex items-center gap-1 border border-emerald-200 shadow-2xs";
+                icon.className = "fa-solid fa-unlock text-emerald-600";
+                text.innerText = "登出";
+                adminActionButtons.classList.remove('hidden');
+            } else {
+                btn.className = "text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg font-semibold transition flex items-center gap-1 border border-slate-200";
+                icon.className = "fa-solid fa-lock text-slate-500";
+                text.innerText = "管理者登入";
+                adminActionButtons.classList.add('hidden');
+            }
+        }
+
+        window.switchTab = function(tab, memberName = null) {
+            currentTab = tab;
+            if (memberName) activeMemberDetail = memberName;
+
+            const btnSchedule = document.getElementById('tab-schedule');
+            const btnStats = document.getElementById('tab-stats');
+            const filterWrapper = document.getElementById('filter-wrapper');
+            const tabSwitcherWrapper = document.getElementById('tab-switcher-wrapper');
+            const bottomNav = document.getElementById('bottom-nav');
+            const headerTitle = document.getElementById('header-title');
+
+            if (tab === 'schedule') {
+                headerTitle.innerText = "急診專師班表";
+                btnSchedule.className = "pb-2 text-sm font-bold border-b-2 border-indigo-600 text-indigo-600 transition";
+                btnStats.className = "pb-2 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition";
+                filterWrapper.style.display = 'block';
+                tabSwitcherWrapper.style.display = 'flex';
+                bottomNav.style.display = 'block';
+                renderMainContent();
+                
+                if (currentYear === todayYear && currentMonth === todayMonth) {
+                    setTimeout(() => { scrollToToday(); }, 80);
+                }
+                return;
+            } else if (tab === 'stats') {
+                headerTitle.innerText = "急診專師班表";
+                btnStats.className = "pb-2 text-sm font-bold border-b-2 border-indigo-600 text-indigo-600 transition";
+                btnSchedule.className = "pb-2 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition";
+                filterWrapper.style.display = 'none';
+                tabSwitcherWrapper.style.display = 'flex';
+                bottomNav.style.display = 'block';
+            } else if (tab === 'member-detail') {
+                headerTitle.innerText = `${activeMemberDetail} - 個人明細`;
+                tabSwitcherWrapper.style.display = 'none';
+                filterWrapper.style.display = 'none';
+                bottomNav.style.display = 'block';
+            }
+            renderMainContent();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        };
+
+        function renderMainContent() {
+            if (currentTab === 'schedule') {
+                renderSchedule();
+            } else if (currentTab === 'stats') {
+                renderStats();
+            } else if (currentTab === 'member-detail') {
+                renderMemberDetail();
+            }
+        }
+
+        function scrollToToday() {
+            const todayElement = document.getElementById('today-card');
+            if (todayElement) {
+                todayElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+
+        function renderFilterBadges() {
+            const container = document.getElementById('filter-container');
+            let html = `
+                <button onclick="setFilter('all')" class="flex-shrink-0 px-3.5 py-1 rounded-full text-xs font-semibold transition ${currentFilter === 'all' ? 'bg-slate-900 text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}">
+                    全部
+                </button>
+            `;
+            members.forEach(m => {
+                const isActive = currentFilter === m.name;
+                html += `
+                    <button onclick="setFilter('${m.name}')" class="flex-shrink-0 flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs font-medium transition ${isActive ? 'bg-slate-900 text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}">
+                        <span class="w-2.5 h-2.5 rounded-full ${m.dot}"></span>
+                        ${m.name}
+                    </button>
+                `;
+            });
+            container.innerHTML = html;
+        }
+
+        function renderBatchMemberSelect() {
+            const select = document.getElementById('batch-member');
+            select.innerHTML = members.map(m => `<option value="${m.name}">${m.name}</option>`).join('');
+        }
+
+        function renderClearMemberSelect() {
+            const select = document.getElementById('clear-member');
+            select.innerHTML = `<option value="all">（全部成員）</option>` + members.map(m => `<option value="${m.name}">${m.name}</option>`).join('');
+        }
+
+        window.setFilter = function(name) {
+            currentFilter = name;
+            renderFilterBadges();
+            renderSchedule();
+        };
+
+        window.changeMonth = function(direction) {
+            currentMonth += direction;
+            if (currentMonth > 12) {
+                currentMonth = 1;
+                currentYear++;
+            } else if (currentMonth < 1) {
+                currentMonth = 12;
+                currentYear--;
+            }
+            updateMonthLabel();
+            renderMainContent();
+            
+            if (currentTab === 'schedule') {
+                if (currentYear === todayYear && currentMonth === todayMonth) {
+                    setTimeout(() => { scrollToToday(); }, 80);
+                } else {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+            } else {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        };
+
+        function updateMonthLabel() {
+            document.getElementById('current-month-label').innerHTML = `${currentYear}年${currentMonth}月 <i class="fa-solid fa-caret-down text-[10px] ml-1 text-slate-400"></i>`;
+        }
+
+        window.openPickerModal = function() {
+            const yearSelect = document.getElementById('picker-year');
+            let yearHtml = '';
+            for (let y = 2026; y <= 2045; y++) {
+                yearHtml += `<option value="${y}" ${y === currentYear ? 'selected' : ''}>${y}年</option>`;
+            }
+            yearSelect.innerHTML = yearHtml;
+
+            const monthsGrid = document.getElementById('picker-months-grid');
+            let html = '';
+            for (let m = 1; m <= 12; m++) {
+                const isSelected = m === currentMonth;
+                html += `
+                    <button type="button" onclick="selectMonth(${m})" class="py-2 rounded-xl text-xs font-bold transition ${isSelected ? 'bg-indigo-600 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}">
+                        ${m}月
+                    </button>
+                `;
+            }
+            monthsGrid.innerHTML = html;
+            document.getElementById('picker-modal').classList.add('flex');
+            document.getElementById('picker-modal').classList.remove('hidden');
+        };
+
+        window.closePickerModal = function() {
+            document.getElementById('picker-modal').classList.remove('flex');
+            document.getElementById('picker-modal').classList.add('hidden');
+        };
+
+        window.selectMonth = function(m) {
+            currentMonth = m;
+            currentYear = parseInt(document.getElementById('picker-year').value);
+            updateMonthLabel();
+            closePickerModal();
+            renderMainContent();
+            
+            if (currentTab === 'schedule') {
+                if (currentYear === todayYear && currentMonth === todayMonth) {
+                    setTimeout(() => { scrollToToday(); }, 80);
+                } else {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+            } else {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        };
+
+        function getDayOfWeek(dateStr) {
+            const days = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'];
+            const d = new Date(dateStr);
+            return days[d.getDay()];
+        }
+
+        function isSpecialHoliday(year, month, day) {
+            const customHolidays = {
+                "2026-9-25": "中秋節",
+                "2026-9-28": "教師節",
+                "2026-10-9": "國慶日補假",
+                "2026-10-26": "光復節補假",
+                "2026-12-25": "行憲紀念日",
+                "2027-9-25": "中秋節",
+                "2027-9-28": "教師節",
+                "2027-10-9": "國慶日補假",
+                "2027-10-26": "光復節補假",
+                "2027-12-25": "行憲紀念日"
+            };
+            return customHolidays[`${year}-${month}-${day}`] || null;
+        }
+
+        function isWeekend(dateStr) {
+            const d = new Date(dateStr);
+            const day = d.getDay();
+            return day === 0 || day === 6;
+        }
+
+        function renderSchedule() {
+            const container = document.getElementById('main-container');
+            const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
+
+            let html = '';
+            for (let d = 1; d <= daysInMonth; d++) {
+                const dateStr = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                const displayDate = `${currentMonth}/${d}`;
+                const weekDay = getDayOfWeek(dateStr);
+                const weekendFlag = isWeekend(dateStr);
+                const holidayName = isSpecialHoliday(currentYear, currentMonth, d);
+                const isToday = (currentYear === todayYear && currentMonth === todayMonth && d === todayDate);
+
+                const slots = [
+                    { section: '內科區', type: 'day', time: '08:00–20:00' },
+                    { section: '內科區', type: 'night', time: '20:00–08:00' },
+                    { section: '外科區', type: 'day', time: '08:00–20:00' },
+                    { section: '外科區', type: 'night', time: '20:00–08:00' }
+                ];
+
+                let assignedMap = {};
+                schedules.filter(s => s.date === dateStr).forEach(s => {
+                    assignedMap[`${s.section}-${s.type}`] = s.member;
+                });
+
+                if (currentFilter !== 'all') {
+                    const hasMatch = slots.some(slot => assignedMap[`${slot.section}-${slot.type}`] === currentFilter);
+                    if (!hasMatch) continue;
+                }
+
+                const boxBorder = isToday ? 'border-2 border-blue-500 shadow-md ring-2 ring-blue-200' : 'border border-slate-200 shadow-sm';
+                const cardId = isToday ? 'id="today-card"' : '';
+
+                let holidayBadge = '';
+                if (holidayName) {
+                    holidayBadge = `<span class="text-xs bg-rose-50 text-rose-600 px-2 py-0.5 rounded font-bold border border-rose-100">${holidayName}</span>`;
+                } else if (weekendFlag) {
+                    holidayBadge = `<span class="text-xs bg-rose-50 text-rose-600 px-2 py-0.5 rounded font-bold border border-rose-100">假日</span>`;
+                }
+
+                html += `
+                    <div ${cardId} class="bg-white rounded-xl ${boxBorder} overflow-hidden mb-3.5">
+                        <div class="px-3.5 py-2.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                                <span class="font-extrabold text-slate-900 text-base">${displayDate}</span>
+                                <span class="text-xs font-bold text-slate-600">${weekDay}</span>
+                                ${holidayBadge}
+                            </div>
+                            <div class="flex items-center gap-1.5">
+                                ${isToday ? '<span class="text-xs bg-blue-600 text-white px-2.5 py-0.5 rounded-full font-bold shadow-2xs animate-pulse">今日</span>' : ''}
+                            </div>
+                        </div>
+
+                        <div class="p-2.5 grid grid-cols-2 gap-2.5">
+                `;
+
+                slots.forEach(slot => {
+                    const memberName = assignedMap[`${slot.section}-${slot.type}`] || '';
+                    const hasMember = memberName !== '';
+                    
+                    let cardBg, nameColor, paddingClass, minHeightClass, displayContent, clickAction;
+                    if (isAdminMode) {
+                        clickAction = `onclick="openEditModal('${dateStr}', '${slot.section}', '${slot.type}')"`;
+                    } else {
+                        clickAction = `onclick="showToast('請先點擊右上角管理者登入解鎖才能修改班表！')"`;
+                    }
+
+                    if (hasMember) {
+                        const isDay = slot.type === 'day';
+                        cardBg = isDay ? 'bg-orange-50/90 border-orange-200' : 'bg-blue-50/90 border-blue-200';
+                        nameColor = isDay ? 'text-orange-950 font-black text-sm' : 'text-blue-950 font-black text-sm';
+                        paddingClass = 'p-2.5';
+                        minHeightClass = 'min-h-[58px]';
+                        displayContent = `<span class="truncate">${memberName} <span class="text-xs font-medium opacity-80">${slot.time}</span></span>`;
+                    } else {
+                        cardBg = 'bg-slate-100/70 border-slate-200/70 hover:bg-slate-200/60';
+                        nameColor = 'text-slate-500 font-medium text-xs';
+                        paddingClass = 'p-1 px-2';
+                        minHeightClass = 'min-h-[26px]';
+                        displayContent = `尚未排班 <span class="text-[9px] opacity-75 font-normal">${slot.time}</span>`;
+                    }
+
+                    html += `
+                        <div ${clickAction} class="border ${cardBg} rounded-lg ${paddingClass} flex flex-col justify-between shadow-2xs cursor-pointer ${minHeightClass} transition">
+                            <div class="flex items-center justify-between mb-0.5">
+                                <span class="text-[10px] font-bold px-1.5 py-0.1 rounded bg-white text-slate-800 border border-slate-200">${slot.section}</span>
+                                ${!isAdminMode ? '<i class="fa-solid fa-lock text-[9px] text-slate-300"></i>' : ''}
+                            </div>
+                            <div class="my-auto">
+                                <span class="block ${nameColor} tracking-wide truncate">${displayContent}</span>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                html += `
+                        </div>
+                    </div>
+                `;
+            }
+
+            container.innerHTML = html;
+
+            if (!hasScrolledToToday && currentYear === todayYear && currentMonth === todayMonth) {
+                hasScrolledToToday = true;
+                setTimeout(() => {
+                    scrollToToday();
+                }, 150);
+            }
+        }
+
+        function renderStats() {
+            const container = document.getElementById('main-container');
+            const monthPrefix = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
+            const monthSchedules = schedules.filter(s => s.date.startsWith(monthPrefix));
+            
+            const requiredHours = getRequiredWorkHours(currentYear, currentMonth);
+
+            const statsMap = {};
+            members.forEach(m => {
+                statsMap[m.name] = { dayShifts: 0, nightShifts: 0, totalHours: 0 };
+            });
+
+            monthSchedules.forEach(s => {
+                if (statsMap[s.member]) {
+                    if (s.type === 'day') {
+                        statsMap[s.member].dayShifts++;
+                    } else {
+                        statsMap[s.member].nightShifts++;
+                    }
+                    statsMap[s.member].totalHours += 12;
+                }
+            });
+
+            let html = `
+                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 mb-4">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <span class="text-xs font-semibold text-slate-500 block">本月應上時數</span>
+                            <span class="text-sm font-bold text-slate-800">${currentYear}年${currentMonth}月</span>
+                        </div>
+                        <div class="flex items-center gap-1.5">
+                            <input type="number" min="0" max="300" step="1" value="${requiredHours}" onchange="updateGlobalRequiredHours(this.value)" class="w-24 border border-indigo-300 rounded-xl px-2 py-1.5 text-sm font-black text-indigo-700 text-center bg-indigo-50/50 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <span class="text-xs text-slate-600 font-bold">小時</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="text-xs font-semibold text-slate-500 mb-2 px-1">💡 點擊下方成員可進入個人假別與時數明細頁：</div>
+                <div class="space-y-3">
+            `;
+
+            members.forEach(m => {
+                const stat = statsMap[m.name];
+                const memberRequired = requiredHours;
+                const diff = stat.totalHours - memberRequired;
+                let diffBadge = '';
+                if (diff > 0) {
+                    diffBadge = `<span class="text-xs bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full font-bold border border-emerald-100">+${diff} 小時</span>`;
+                } else if (diff < 0) {
+                    diffBadge = `<span class="text-xs bg-rose-50 text-rose-700 px-2 py-0.5 rounded-full font-bold border border-rose-100">${diff} 小時</span>`;
+                } else {
+                    diffBadge = `<span class="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-bold">剛好符合</span>`;
+                }
+
+                html += `
+                    <div onclick="switchTab('member-detail', '${m.name}')" class="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex items-center justify-between cursor-pointer hover:border-indigo-300 hover:shadow-md transition">
+                        <div class="flex items-center gap-2.5">
+                            <span class="w-3 h-3 rounded-full ${m.dot}"></span>
+                            <div>
+                                <span class="font-bold text-slate-900 text-sm block">${m.name}</span>
+                                <span class="text-xs text-slate-500">白班: ${stat.dayShifts}班 | 夜班: ${stat.nightShifts}班</span>
+                            </div>
+                        </div>
+                        <div class="text-right flex items-center gap-3">
+                            <div>
+                                <span class="font-extrabold text-slate-900 text-base block">${stat.totalHours} 小時</span>
+                                <div class="mt-0.5">${diffBadge}</div>
+                            </div>
+                            <i class="fa-solid fa-chevron-right text-slate-300 text-xs"></i>
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += `</div>`;
+            container.innerHTML = html;
+        }
+
+        window.updateGlobalRequiredHours = function(value) {
+            const val = parseFloat(value) || 0;
+            setRequiredWorkHours(currentYear, currentMonth, val);
+            showToast('已更新本月應上時數');
+            renderStats();
+        };
+
+        function renderMemberDetail() {
+            const container = document.getElementById('main-container');
+            const memberName = activeMemberDetail;
+            const record = getMemberMonthRecord(memberName, currentYear, currentMonth);
+            const requiredHours = getRequiredWorkHours(currentYear, currentMonth);
+
+            const monthPrefix = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
+            const memberShifts = schedules.filter(s => s.date.startsWith(monthPrefix) && s.member === memberName);
+            const actualWorkHours = memberShifts.length * 12;
+
+            let diffHours = actualWorkHours - requiredHours;
+            const addedCompAndOvertime = (record.compAdded || 0) + (record.overtime || 0);
+            diffHours -= addedCompAndOvertime;
+
+            const takenLeaveHours = ((record.annualLeave || 0) * 8) + (record.compLeave || 0);
+            diffHours += takenLeaveHours;
+
+            const positiveHours = diffHours > 0 ? diffHours : 0;
+            const negativeHours = diffHours < 0 ? Math.abs(diffHours) : 0;
+
+            const isJanuary = currentMonth === 1;
+            const initialAnnual = isJanuary ? (record.annualTotal || 0) : getRemainingAnnualLeave(memberName, currentYear, currentMonth);
+            const initialComp = getRemainingCompHours(memberName, currentYear, currentMonth);
+
+            const finalAnnual = initialAnnual - (record.annualLeave || 0);
+            const finalComp = initialComp + (record.compAdded || 0) + (record.typhoon || 0) - (record.compLeave || 0);
+
+            let html = `
+                <div class="space-y-4">
+                    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+                        <div class="flex items-center justify-between mb-3 pb-3 border-b border-slate-100">
+                            <button onclick="switchTab('stats')" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg font-semibold transition flex items-center gap-1">
+                                <i class="fa-solid fa-arrow-left"></i> 返回時數統計
+                            </button>
+                            <span class="text-xs font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full">${currentYear}年${currentMonth}月</span>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3 mb-3">
+                            <div class="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                <span class="text-xs text-slate-500 block">本月實際上班時數</span>
+                                <span class="text-lg font-black text-slate-900">${actualWorkHours} <span class="text-xs font-normal">小時</span></span>
+                            </div>
+                            <div class="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                <span class="text-xs text-slate-500 block">本月應上時數</span>
+                                <span class="text-lg font-black text-indigo-600">${requiredHours} <span class="text-xs font-normal">小時</span></span>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="bg-emerald-50/60 p-3 rounded-xl border border-emerald-100">
+                                <span class="text-xs text-emerald-700 block">本月正時數</span>
+                                <span class="text-lg font-black text-emerald-800" id="display-positive-hours">${positiveHours} <span class="text-xs font-normal">小時</span></span>
+                            </div>
+                            <div class="bg-rose-50/60 p-3 rounded-xl border border-rose-100">
+                                <span class="text-xs text-rose-700 block">本月負時數</span>
+                                <span class="text-lg font-black text-rose-800" id="display-negative-hours">${negativeHours} <span class="text-xs font-normal">小時</span></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-2xl p-4 shadow-md space-y-3">
+                        <div class="text-xs font-bold text-slate-300 tracking-wider uppercase">假別餘額結算</div>
+                        <div class="grid grid-cols-2 gap-3 pt-1">
+                            <div class="bg-white/10 p-3 rounded-xl backdrop-blur">
+                                <span class="text-xs text-slate-300 block">截至上月底剩餘特休</span>
+                                <span class="text-lg font-bold text-slate-200">${initialAnnual} 天</span>
+                                <div class="mt-2 pt-2 border-t border-white/10">
+                                    <span class="text-[10px] text-emerald-300 block">本月結算剩餘特休</span>
+                                    <span class="text-xl font-black text-emerald-400" id="display-rem-annual">${finalAnnual}</span> <span class="text-xs font-normal text-white">天</span>
+                                </div>
+                            </div>
+                            <div class="bg-white/10 p-3 rounded-xl backdrop-blur">
+                                <span class="text-xs text-slate-300 block">截至上月底剩餘補休</span>
+                                <span class="text-lg font-bold text-slate-200">${initialComp} 小時</span>
+                                <div class="mt-2 pt-2 border-t border-white/10">
+                                    <span class="text-[10px] text-sky-300 block">本月結算剩餘補休</span>
+                                    <span class="text-xl font-black text-sky-400" id="display-rem-comp">${finalComp}</span> <span class="text-xs font-normal text-white">小時</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-4">
+                        <h3 class="text-sm font-bold text-slate-900 border-b border-slate-100 pb-2 flex items-center gap-2">
+                            <i class="fa-solid fa-sliders text-indigo-600"></i> 本月假別與時數調整
+                        </h3>
+            `;
+
+            if (isJanuary) {
+                html += `
+                    <div class="space-y-1.5">
+                        <label class="block text-xs font-bold text-slate-700">1. 今年度總計特休天數（1月設定）</label>
+                        <div class="flex items-center gap-3">
+                            <input type="number" id="input-annual-total" min="0" max="40" step="0.5" value="${record.annualTotal || 0}" onchange="updateMemberField('${memberName}', 'annualTotal', this.value)" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm font-bold text-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <span class="text-xs text-slate-500 font-semibold flex-shrink-0">天</span>
+                        </div>
+                    </div>
+                `;
+            }
+
+            html += `
+                <div class="space-y-1.5">
+                    <div class="flex justify-between items-center text-xs">
+                        <label class="font-bold text-slate-700">${isJanuary ? '2.' : '1.'} 本月請特休天數</label>
+                        <span class="font-extrabold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded" id="val-annualLeave">${record.annualLeave || 0} 天</span>
+                    </div>
+                    <input type="range" min="0" max="5" step="0.5" value="${record.annualLeave || 0}" oninput="handleSliderInput('${memberName}', 'annualLeave', this.value)" class="w-full accent-indigo-600 cursor-pointer">
+                    <div class="flex justify-between text-[10px] text-slate-400"><span>0 天</span><span>2.5 天</span><span>5 天</span></div>
+                </div>
+
+                <div class="space-y-1.5">
+                    <div class="flex justify-between items-center text-xs">
+                        <label class="font-bold text-slate-700">${isJanuary ? '3.' : '2.'} 本月請補休時數</label>
+                        <span class="font-extrabold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded" id="val-compLeave">${record.compLeave || 0} 小時</span>
+                    </div>
+                    <input type="range" min="0" max="48" step="1" value="${record.compLeave || 0}" oninput="handleSliderInput('${memberName}', 'compLeave', this.value)" class="w-full accent-indigo-600 cursor-pointer">
+                    <div class="flex justify-between text-[10px] text-slate-400"><span>0 小時</span><span>24 小時</span><span>48 小時</span></div>
+                </div>
+
+                <div class="space-y-1.5">
+                    <div class="flex justify-between items-center text-xs">
+                        <label class="font-bold text-slate-700">${isJanuary ? '4.' : '3.'} 本月新增補休時數</label>
+                        <span class="font-extrabold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded" id="val-compAdded">${record.compAdded || 0} 小時</span>
+                    </div>
+                    <input type="range" min="0" max="48" step="1" value="${record.compAdded || 0}" oninput="handleSliderInput('${memberName}', 'compAdded', this.value)" class="w-full accent-indigo-600 cursor-pointer">
+                    <div class="flex justify-between text-[10px] text-slate-400"><span>0 小時</span><span>24 小時</span><span>48 小時</span></div>
+                </div>
+
+                <div class="space-y-1.5">
+                    <div class="flex justify-between items-center text-xs">
+                        <label class="font-bold text-slate-700">${isJanuary ? '5.' : '4.'} 本月加班時數</label>
+                        <span class="font-extrabold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded" id="val-overtime">${record.overtime || 0} 小時</span>
+                    </div>
+                    <input type="range" min="0" max="48" step="1" value="${record.overtime || 0}" oninput="handleSliderInput('${memberName}', 'overtime', this.value)" class="w-full accent-indigo-600 cursor-pointer">
+                    <div class="flex justify-between text-[10px] text-slate-400"><span>0 小時</span><span>24 小時</span><span>48 小時</span></div>
+                </div>
+
+                <div class="space-y-1.5">
+                    <div class="flex justify-between items-center text-xs">
+                        <label class="font-bold text-slate-700">${isJanuary ? '6.' : '5.'} 本月颱風假時數</label>
+                        <span class="font-extrabold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded" id="val-typhoon">${record.typhoon || 0} 小時</span>
+                    </div>
+                    <input type="range" min="0" max="48" step="1" value="${record.typhoon || 0}" oninput="handleSliderInput('${memberName}', 'typhoon', this.value)" class="w-full accent-indigo-600 cursor-pointer">
+                    <div class="flex justify-between text-[10px] text-slate-400"><span>0 小時</span><span>24 小時</span><span>48 小時</span></div>
+                </div>
+            </div>
+        </div>
+            `;
+            container.innerHTML = html;
+        }
+
+        window.updateMemberField = function(memberName, field, value) {
+            const record = getMemberMonthRecord(memberName, currentYear, currentMonth);
+            record[field] = parseFloat(value) || 0;
+            saveToCloud();
+            showToast('已更新資料並同步');
+            renderMemberDetail();
+        };
+
+        window.handleSliderInput = function(memberName, field, value) {
+            const record = getMemberMonthRecord(memberName, currentYear, currentMonth);
+            record[field] = parseFloat(value) || 0;
+            saveToCloud();
+            
+            const span = document.getElementById(`val-${field}`);
+            if (span) {
+                if (field === 'annualLeave') {
+                    span.innerText = `${record[field]} 天`;
+                } else {
+                    span.innerText = `${record[field]} 小時`;
+                }
+            }
+
+            const monthPrefix = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
+            const memberShifts = schedules.filter(s => s.date.startsWith(monthPrefix) && s.member === memberName);
+            const actualWorkHours = memberShifts.length * 12;
+            const requiredHours = getRequiredWorkHours(currentYear, currentMonth);
+
+            let diffHours = actualWorkHours - requiredHours;
+            const addedCompAndOvertime = (record.compAdded || 0) + (record.overtime || 0);
+            diffHours -= addedCompAndOvertime;
+
+            const takenLeaveHours = ((record.annualLeave || 0) * 8) + (record.compLeave || 0);
+            diffHours += takenLeaveHours;
+
+            const positiveHours = diffHours > 0 ? diffHours : 0;
+            const negativeHours = diffHours < 0 ? Math.abs(diffHours) : 0;
+
+            const posSpan = document.getElementById('display-positive-hours');
+            if (posSpan) posSpan.innerHTML = `${positiveHours} <span class="text-xs font-normal">小時</span>`;
+
+            const negSpan = document.getElementById('display-negative-hours');
+            if (negSpan) negSpan.innerHTML = `${negativeHours} <span class="text-xs font-normal">小時</span>`;
+
+            const isJanuary = currentMonth === 1;
+            const initialAnnual = isJanuary ? (record.annualTotal || 0) : getRemainingAnnualLeave(memberName, currentYear, currentMonth);
+            const initialComp = getRemainingCompHours(memberName, currentYear, currentMonth);
+
+            const finalAnnual = initialAnnual - (record.annualLeave || 0);
+            const finalComp = initialComp + (record.compAdded || 0) + (record.typhoon || 0) - (record.compLeave || 0);
+
+            const remAnnualSpan = document.getElementById('display-rem-annual');
+            if (remAnnualSpan) remAnnualSpan.innerText = finalAnnual;
+
+            const remCompSpan = document.getElementById('display-rem-comp');
+            if (remCompSpan) remCompSpan.innerText = finalComp;
+        };
+
+        window.openEditModal = function(date, section, type) {
+            activeEditKey = { date, section, type };
+            const timeStr = type === 'day' ? '08:00–20:00 (白班)' : '20:00–08:00 (夜班)';
+            const existing = schedules.find(s => s.date === date && s.section === section && s.type === type);
+            const currentMemberText = existing ? existing.member : '尚未指派';
+
+            document.getElementById('edit-info-box').innerHTML = `
+                <div class="font-semibold text-slate-800 mb-0.5">日期：${date} (${section})</div>
+                <div>時段：${timeStr}</div>
+                <div>目前人員：<span class="font-bold text-indigo-600">${currentMemberText}</span></div>
+            `;
+
+            const grid = document.getElementById('member-selection-grid');
+            grid.innerHTML = members.map(m => `
+                <button type="button" onclick="assignMemberToSlot('${m.name}')" class="p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-indigo-50 hover:border-indigo-300 text-slate-700 font-bold text-xs flex items-center justify-center gap-2 transition">
+                    <span class="w-2.5 h-2.5 rounded-full ${m.dot}"></span>
+                    ${m.name}
+                </button>
+            `).join('');
+
+            document.getElementById('edit-modal').classList.add('flex');
+            document.getElementById('edit-modal').classList.remove('hidden');
+        };
+
+        window.closeEditModal = function() {
+            document.getElementById('edit-modal').classList.remove('flex');
+            document.getElementById('edit-modal').classList.add('hidden');
+            activeEditKey = null;
+        };
+
+        window.assignMemberToSlot = function(memberName) {
+            if (!activeEditKey) return;
+            const { date, section, type } = activeEditKey;
+            schedules = schedules.filter(s => !(s.date === date && s.section === section && s.type === type));
+            schedules.push({ date, section, type, member: memberName });
+            saveToCloud();
+            renderSchedule();
+            closeEditModal();
+            showToast(`已指派 ${memberName} (已同步)`);
+        };
+
+        window.clearCurrentEditShift = function() {
+            if (!activeEditKey) return;
+            const { date, section, type } = activeEditKey;
+            schedules = schedules.filter(s => !(s.date === date && s.section === section && s.type === type));
+            saveToCloud();
+            renderSchedule();
+            closeEditModal();
+            showToast('已清除此時段人員 (已同步)');
+        };
+
+        window.openBatchModal = function() {
+            renderBatchDatesGrid();
+            document.getElementById('batch-modal').classList.add('flex');
+            document.getElementById('batch-modal').classList.remove('hidden');
+        };
+
+        window.closeBatchModal = function() {
+            document.getElementById('batch-modal').classList.remove('flex');
+            document.getElementById('batch-modal').classList.add('hidden');
+        };
+
+        function renderBatchDatesGrid() {
+            const container = document.getElementById('batch-dates-grid');
+            const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
+            
+            let html = '';
+            for (let d = 1; d <= daysInMonth; d++) {
+                const dateStr = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                html += `
+                    <div onclick="toggleBatchDate(this)" data-date="${dateStr}" class="batch-date-btn">
+                        <span>${d}</span>
+                    </div>
+                `;
+            }
+            container.innerHTML = html;
+        }
+
+        window.toggleBatchDate = function(el) {
+            el.classList.toggle('selected');
+        };
+
+        window.selectAllDates = function(select) {
+            const btns = document.querySelectorAll('.batch-date-btn');
+            btns.forEach(btn => {
+                if (select) {
+                    btn.classList.add('selected');
+                } else {
+                    btn.classList.remove('selected');
+                }
+            });
+        };
+
+        window.handleBatchSave = function() {
+            const member = document.getElementById('batch-member').value;
+            const section = document.getElementById('batch-section').value;
+            const type = document.getElementById('batch-type').value;
+            
+            const selectedBtns = document.querySelectorAll('.batch-date-btn.selected');
+            if (selectedBtns.length === 0) {
+                showToast('請至少點選一個日期');
+                return;
+            }
+
+            selectedBtns.forEach(btn => {
+                const date = btn.getAttribute('data-date');
+                schedules = schedules.filter(s => !(s.date === date && s.section === section && s.type === type));
+                schedules.push({ date, section, type, member });
+            });
+
+            saveToCloud();
+            renderSchedule();
+            closeBatchModal();
+            showToast(`成功批次排入 ${selectedBtns.length} 天！(已同步)`);
+        };
+
+        window.openClearModal = function() {
+            renderClearDatesGrid();
+            document.getElementById('clear-modal').classList.add('flex');
+            document.getElementById('clear-modal').classList.remove('hidden');
+        };
+
+        window.closeClearModal = function() {
+            document.getElementById('clear-modal').classList.remove('flex');
+            document.getElementById('clear-modal').classList.add('hidden');
+        };
+
+        window.renderClearDatesGrid = function() {
+            const container = document.getElementById('clear-dates-grid');
+            const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
+            const targetMember = document.getElementById('clear-member').value;
+            
+            const monthPrefix = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
+            
+            let scheduledDates = new Set();
+            schedules.forEach(s => {
+                if (s.date.startsWith(monthPrefix)) {
+                    if (targetMember === 'all' || s.member === targetMember) {
+                        scheduledDates.add(s.date);
+                    }
+                }
+            });
+
+            let html = '';
+            for (let d = 1; d <= daysInMonth; d++) {
+                const dateStr = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                const hasShift = scheduledDates.has(dateStr);
+                const highlightClass = hasShift ? 'has-shift' : '';
+                
+                html += `
+                    <div onclick="toggleClearDate(this)" data-date="${dateStr}" class="clear-date-btn ${highlightClass}">
+                        <span>${d}</span>
+                    </div>
+                `;
+            }
+            container.innerHTML = html;
+        };
+
+        window.toggleClearDate = function(el) {
+            el.classList.toggle('selected');
+        };
+
+        window.selectAllClearDates = function(select) {
+            const btns = document.querySelectorAll('.clear-date-btn');
+            btns.forEach(btn => {
+                if (select) {
+                    btn.classList.add('selected');
+                } else {
+                    btn.classList.remove('selected');
+                }
+            });
+        };
+
+        window.handleClearSave = function() {
+            const targetMember = document.getElementById('clear-member').value;
+            const selectedBtns = document.querySelectorAll('.clear-date-btn.selected');
+            
+            if (selectedBtns.length === 0) {
+                showToast('請至少勾選一個日期');
+                return;
+            }
+
+            const targetDates = Array.from(selectedBtns).map(btn => btn.getAttribute('data-date'));
+
+            if (targetMember === 'all') {
+                schedules = schedules.filter(s => !targetDates.includes(s.date));
+            } else {
+                schedules = schedules.filter(s => !(targetDates.includes(s.date) && s.member === targetMember));
+            }
+
+            saveToCloud();
+            renderSchedule();
+            closeClearModal();
+            showToast('已成功清除勾選的排班！(已同步)');
+        };
+
+        window.showToast = function(message) {
+            const toast = document.getElementById('toast');
+            toast.innerText = message;
+            toast.classList.remove('opacity-0', 'pointer-events-none');
+            toast.classList.add('opacity-100');
+            setTimeout(() => {
+                toast.classList.remove('opacity-100');
+                toast.classList.add('opacity-0', 'pointer-events-none');
+            }, 1800);
+        };
+
+        window.onload = initApp;
+    </script>
+</body>
+</html>
+
